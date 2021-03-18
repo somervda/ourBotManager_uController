@@ -21,7 +21,7 @@ class Base_Motor_Controller():
     # cycles
     dFactor = 0.2
 
-    def __init__(self, pin_num_pwm_l, pin_num_in1_l, pin_num_in2_l,  pin_num_pwm_r, pin_num_in1_r, pin_num_in2_r, pin_num_encoder_l, pin_num_encoder_r, freq=1000):
+    def __init__(self, pin_num_pwm_l, pin_num_in1_l, pin_num_in2_l, pin_num_encoder_l, pin_num_pwm_r, pin_num_in1_r, pin_num_in2_r,  pin_num_encoder_r, freq=1000):
         # setup hbridge motor controller pin assignments
         self.motorLeft = HBridge(
             pin_num_pwm_l,  pin_num_in1_l, pin_num_in2_l, freq)
