@@ -1,7 +1,7 @@
 from base_motor_controller import Base_Motor_Controller
 import utime
 
-bmc = Base_Motor_Controller(20, 19, 18, 11, 12, 13, 10, 16)
+bmc = Base_Motor_Controller(20, 19, 18, 10, 11, 12, 13,  16)
 
 bmc.run(90)
 utime.sleep_ms(3000)
