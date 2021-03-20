@@ -1,4 +1,5 @@
-from machine import Pin, I2C, Timer
+from machine import Pin, I2C, Timer, UART
+# import machine
 import utime
 from hbridge import HBridge
 import gc
@@ -6,7 +7,13 @@ import gc
 
 class Base_Motor_Controller():
 
+    debug = False
+
+    uart = UART(0, 9600)  # uart0 pins 1 (tx) and 2 (rx)
+    uartData = ""
+
     # Set up motor encoder interface
+    motorMode = "L"  # R=Run T=Turn L=Listen
     motorEncoderCntR = 0
     motorEncoderCntTotalR = 0
     motorEncoderCntL = 0
@@ -37,13 +44,14 @@ class Base_Motor_Controller():
         self.motorEncoderCntR = 0
         self.motorEncoderCntL = 0
         self.motorEncoderR.irq(trigger=Pin.IRQ_FALLING,
-                               handler=self.motorEncoderCallbackR)
+                               handler=self._motorEncoderCallbackR)
         self.motorEncoderL.irq(trigger=Pin.IRQ_FALLING,
-                               handler=self.motorEncoderCallbackL)
+                               handler=self._motorEncoderCallbackL)
 
         self.statusTimer = Timer()
+        self.motorMode = "R"
         self.statusTimer.init(freq=10, mode=Timer.PERIODIC,
-                              callback=self.monitorRunStatus)
+                              callback=self._monitorStatus)
         if (self.speed > 0):
             self.motorLeft.forward(abs(self.speed))
             self.motorRight.forward(abs(self.speed))
@@ -59,13 +67,14 @@ class Base_Motor_Controller():
         self.motorEncoderCntR = 0
         self.motorEncoderCntL = 0
         self.motorEncoderR.irq(trigger=Pin.IRQ_FALLING,
-                               handler=self.motorEncoderCallbackR)
+                               handler=self._motorEncoderCallbackR)
         self.motorEncoderL.irq(trigger=Pin.IRQ_FALLING,
-                               handler=self.motorEncoderCallbackL)
+                               handler=self._motorEncoderCallbackL)
 
         self.statusTimer = Timer()
+        self.motorMode = "T"
         self.statusTimer.init(freq=10, mode=Timer.PERIODIC,
-                              callback=self.monitorTurnStatus)
+                              callback=self._monitorStatus)
         if (self.speed > 0):
             self.motorLeft.reverse(abs(self.speed))
             self.motorRight.forward(abs(self.speed))
@@ -79,28 +88,39 @@ class Base_Motor_Controller():
         # Use stop when the motor control should be re-initialized
         # otherwise the next run() will continue to compensate for
         # existing distance discrepancies
+        self.speed = 0
         self.motorLeft.stop()
         self.motorRight.stop()
-        self.statusTimer.deinit()
         self.motorEncoderR.irq(handler=None)
         self.motorEncoderL.irq(handler=None)
         self.motorEncoderCntTotalR = 0
         self.motorEncoderCntTotalL = 0
+        self.motorMode = "L"
         gc.collect()
 
-    def monitorRunStatus(self, timer):
-        self.adjustLRSpeed(True)
-        gc.collect()
-        self.motorEncoderCntR = 0
-        self.motorEncoderCntL = 0
+    def start(self, debug=False):
+        self.motorMode = "L"
+        self.debug = debug
+        self.statusTimer = Timer()
+        self.statusTimer.init(freq=10, mode=Timer.PERIODIC,
+                              callback=self._monitorStatus)
 
-    def monitorTurnStatus(self, timer):
-        self.adjustLRSpeed(False)
-        gc.collect()
-        self.motorEncoderCntR = 0
-        self.motorEncoderCntL = 0
+    def quit(self):
+        try:
+            self.statusTimer.deinit()
+            print("Quit OK")
+        except:
+            print("Could not deinit status timer!")
 
-    def adjustLRSpeed(self, isRun):
+    def _monitorStatus(self, timer):
+        if self.motorMode != "L":
+            self._adjustLRSpeed(self.motorMode == "R")
+            self.motorEncoderCntR = 0
+            self.motorEncoderCntL = 0
+        self._uartListen()
+        gc.collect()
+
+    def _adjustLRSpeed(self, isRun):
         # Checks the the distance moved on each Tick and
         # reduce the faster motor speed if needed
         speedL = self.speed
@@ -125,6 +145,10 @@ class Base_Motor_Controller():
             else:
                 speedR -= round(speedR * distDiff * self.dFactor)
 
+        if self.debug:
+            print("speedL:" + str(speedL) + " speedL:" + str(speedR) + " distL:" +
+                  str(self.motorEncoderCntTotalL) + " distR:" + str(self.motorEncoderCntTotalR) + " speedDiff:" + str(speedDiff) + " distDiff:" + str(distDiff) + " deltaL:" +
+                  str(self.motorEncoderCntL) + " deltaR:" + str(self.motorEncoderCntR))
         # Set motor directions depending on if it is a RUN or Turn action
         # and if direction is positive or negative
         if (isRun):
@@ -142,10 +166,66 @@ class Base_Motor_Controller():
                 self.motorLeft.forward(abs(speedL))
                 self.motorRight.reverse(abs(speedR))
 
-    def motorEncoderCallbackR(self, pin):
+    def _motorEncoderCallbackR(self, pin):
         self.motorEncoderCntR += 1
         self.motorEncoderCntTotalR += 1
 
-    def motorEncoderCallbackL(self, pin):
+    def _motorEncoderCallbackL(self, pin):
         self.motorEncoderCntL += 1
         self.motorEncoderCntTotalL += 1
+
+    def _uartListen(self):
+        while (self.uart.any()):
+            uartIn = self.uart.read(1).decode("utf-8")
+            if uartIn == "\n":
+                self._processData()
+                self.uartData = ""
+            else:
+                self.uartData += uartIn
+
+    def _processData(self):
+        # print(str(self.uart.any()))
+        command = ""
+        velocity = 0
+        distance = 0
+        # print("_processData:" + self.uartData + " " + str(len(self.uartData)))
+        if len(self.uartData) == 2:
+            command = self.uartData
+            if command not in ["SP", "RB", "QT"]:
+                command = ""
+        if len(self.uartData) == 6:
+            command = self.uartData[0:2]
+            if command not in ["RV", "TV"]:
+                command = ""
+            else:
+                try:
+                    velocity = int(self.uartData[2:6])
+                    print("RV negative:" + self.uartData[2:3])
+                except:
+                    command = ""
+                    velocity = 0
+        if len(self.uartData) == 12:
+            command = self.uartData[0:2]
+            if command not in ["RD", "TD"]:
+                command = ""
+            else:
+                try:
+                    velocity = int(self.uartData[2:6])
+                    distance = int(self.uartData[6:12])
+                except:
+                    command = ""
+                    velocity = 0
+                    distance = 0
+        if len(command) > 0:
+            if self.debug:
+                print("commandMsg:", self.uartData + " command:" + command +
+                      " velocity:" + str(velocity) + " distance:" + str(distance))
+            if command == "QT":
+                self.stop()
+                self.quit()
+            elif command == "SP":
+                self.stop()
+            elif command == "RV":
+                self.run(velocity)
+            elif command == "TV":
+                self.turn(velocity)
