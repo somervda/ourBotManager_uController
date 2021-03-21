@@ -14,6 +14,7 @@ class Base_Motor_Controller():
 
     # Set up motor encoder interface
     motorMode = "L"  # R=Run T=Turn L=Listen
+    baseTargetDistance = 0  # In average encoder ticks
     motorEncoderCntR = 0
     motorEncoderCntTotalR = 0
     motorEncoderCntL = 0
@@ -61,6 +62,10 @@ class Base_Motor_Controller():
         if (self.speed == 0):
             self.stop()
 
+    def runDistance(self, speed, distance):
+        self.baseTargetDistance = distance
+        self.run(speed)
+
     def turn(self, speed):
         # rotate the body at the velocity defined by speed
         self.speed = speed
@@ -84,6 +89,10 @@ class Base_Motor_Controller():
         if (self.speed == 0):
             self.stop()
 
+    def turnDistance(self, speed, distance):
+        self.baseTargetDistance = distance
+        self.turn(speed)
+
     def stop(self):
         # Use stop when the motor control should be re-initialized
         # otherwise the next run() will continue to compensate for
@@ -91,6 +100,7 @@ class Base_Motor_Controller():
         self.speed = 0
         self.motorLeft.stop()
         self.motorRight.stop()
+        self.baseTargetDistance = 0
         self.motorEncoderR.irq(handler=None)
         self.motorEncoderL.irq(handler=None)
         self.motorEncoderCntTotalR = 0
@@ -144,27 +154,34 @@ class Base_Motor_Controller():
                 speedL -= round(speedL * distDiff * self.dFactor)
             else:
                 speedR -= round(speedR * distDiff * self.dFactor)
-
         if self.debug:
             print("speedL:" + str(speedL) + " speedL:" + str(speedR) + " distL:" +
                   str(self.motorEncoderCntTotalL) + " distR:" + str(self.motorEncoderCntTotalR) + " speedDiff:" + str(speedDiff) + " distDiff:" + str(distDiff) + " deltaL:" +
                   str(self.motorEncoderCntL) + " deltaR:" + str(self.motorEncoderCntR))
-        # Set motor directions depending on if it is a RUN or Turn action
-        # and if direction is positive or negative
-        if (isRun):
-            if (self.speed > 0):
-                self.motorLeft.forward(abs(speedL))
-                self.motorRight.forward(abs(speedR))
-            else:
-                self.motorLeft.reverse(abs(speedL))
-                self.motorRight.reverse(abs(speedR))
+        # If we are moving a certain distance then check the distance the base has moved (average of the two motor encoders)
+        # vs the  baseTargetDistance
+        if self.baseTargetDistance > 0 and ((self.motorEncoderCntTotalR + self.motorEncoderCntTotalL)/2) > self.baseTargetDistance:
+            if self.debug:
+                print("Distance exceeded, stopped:" +
+                      str((self.motorEncoderCntR + self.motorEncoderCntL)/2))
+            self.stop()
         else:
-            if (self.speed > 0):
-                self.motorLeft.reverse(abs(speedL))
-                self.motorRight.forward(abs(speedR))
+            # Set motor directions depending on if it is a RUN or Turn action
+            # and if direction is positive or negative
+            if (isRun):
+                if (self.speed > 0):
+                    self.motorLeft.forward(abs(speedL))
+                    self.motorRight.forward(abs(speedR))
+                else:
+                    self.motorLeft.reverse(abs(speedL))
+                    self.motorRight.reverse(abs(speedR))
             else:
-                self.motorLeft.forward(abs(speedL))
-                self.motorRight.reverse(abs(speedR))
+                if (self.speed > 0):
+                    self.motorLeft.reverse(abs(speedL))
+                    self.motorRight.forward(abs(speedR))
+                else:
+                    self.motorLeft.forward(abs(speedL))
+                    self.motorRight.reverse(abs(speedR))
 
     def _motorEncoderCallbackR(self, pin):
         self.motorEncoderCntR += 1
@@ -200,18 +217,17 @@ class Base_Motor_Controller():
             else:
                 try:
                     velocity = int(self.uartData[2:6])
-                    print("RV negative:" + self.uartData[2:3])
                 except:
                     command = ""
                     velocity = 0
-        if len(self.uartData) == 12:
+        if len(self.uartData) == 11:
             command = self.uartData[0:2]
             if command not in ["RD", "TD"]:
                 command = ""
             else:
                 try:
                     velocity = int(self.uartData[2:6])
-                    distance = int(self.uartData[6:12])
+                    distance = int(self.uartData[6:11])
                 except:
                     command = ""
                     velocity = 0
@@ -229,3 +245,7 @@ class Base_Motor_Controller():
                 self.run(velocity)
             elif command == "TV":
                 self.turn(velocity)
+            elif command == "RD":
+                self.runDistance(velocity, distance)
+            elif command == "TD":
+                self.turnDistance(velocity, distance)
