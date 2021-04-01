@@ -1,5 +1,5 @@
 from machine import Pin, I2C, Timer, UART
-# import machine
+import machine
 import utime
 from hbridge import HBridge
 import gc
@@ -106,13 +106,23 @@ class Base_Motor_Controller():
         # Use stop when the motor control should be re-initialized
         # otherwise the next run() will continue to compensate for
         # existing distance discrepancies
-        self.speed = 0
-
         self.motorLeft.stop()
         self.motorRight.stop()
         self.baseTargetDistance = 0
         self.motorEncoderR.irq(handler=None)
         self.motorEncoderL.irq(handler=None)
+        #  Report back if a movement happened
+        if self.motorMode in ["R", "T"]:
+            # Send back info about average base movement in the form
+            # of an R value (after a run) or a T value
+            totalMovement = round(
+                (self.motorEncoderCntTotalL + self.motorEncoderCntTotalR)/2)
+            if (self.speed < 0):
+                totalMovement *= -1
+            movementString = self.motorMode + "%+06d" % totalMovement + "\n"
+            self.uart.write(movementString.encode())
+        #  Clean up movement info.
+        self.speed = 0
         self.motorEncoderCntTotalR = 0
         self.motorEncoderCntTotalL = 0
         self.motorMode = "L"
@@ -131,6 +141,10 @@ class Base_Motor_Controller():
             print("Quit OK")
         except:
             print("Could not deinit status timer!")
+
+    def reboot(self):
+        # Hardware reboot to get everything restarted
+        machine.reset()
 
     def _setSpeed(self, speed):
         self.speed = speed
@@ -292,6 +306,8 @@ class Base_Motor_Controller():
                 self.quit()
             elif command == "SP":
                 self.stop()
+            elif command == "RB":
+                self.reboot()
             elif command == "RV":
                 self.run(velocity)
             elif command == "TV":
