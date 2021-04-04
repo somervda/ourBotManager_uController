@@ -187,16 +187,16 @@ class Base_Motor_Controller():
 
             #  Set the difference to reduce faster motor speed based on if positive or negative speed
             if (self.motorEncoderCntL < self.motorEncoderCntR):
-                speedL -= round(speedL * speedDiff)
-            else:
                 speedR -= round(speedR * speedDiff)
+            else:
+                speedL -= round(speedL * speedDiff)
 
             # If speeds must be adjusted to compensate for over all distance
             # then do it gradually based on dFactor
             if (self.motorEncoderCntTotalL < self.motorEncoderCntTotalR):
-                speedL -= round(speedL * distDiff * self.dFactor)
-            else:
                 speedR -= round(speedR * distDiff * self.dFactor)
+            else:
+                speedL -= round(speedL * distDiff * self.dFactor)
             if self.debug:
                 print("speedDiff:" + str(speedDiff) + " distDiff:" + str(distDiff) + " deltaL:" +
                       str(self.motorEncoderCntL) + " deltaR:" + str(self.motorEncoderCntR))
