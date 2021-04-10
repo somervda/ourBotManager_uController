@@ -51,8 +51,8 @@ class Base_Motor_Controller():
 
     def run(self, speed):
         self._setSpeed(speed)
-        self.motorEncoderCntR = 0
-        self.motorEncoderCntL = 0
+        # self.motorEncoderCntR = 0
+        # self.motorEncoderCntL = 0
         self.motorEncoderR.irq(trigger=Pin.IRQ_FALLING,
                                handler=self._motorEncoderCallbackR)
         self.motorEncoderL.irq(trigger=Pin.IRQ_FALLING,
@@ -78,8 +78,8 @@ class Base_Motor_Controller():
     def turn(self, speed):
         # rotate the body at the velocity defined by speed
         self._setSpeed(speed)
-        self.motorEncoderCntR = 0
-        self.motorEncoderCntL = 0
+        # self.motorEncoderCntR = 0
+        # self.motorEncoderCntL = 0
         self.motorEncoderR.irq(trigger=Pin.IRQ_FALLING,
                                handler=self._motorEncoderCallbackR)
         self.motorEncoderL.irq(trigger=Pin.IRQ_FALLING,
@@ -123,6 +123,8 @@ class Base_Motor_Controller():
             self.uart.write(movementString.encode())
         #  Clean up movement info.
         self.speed = 0
+        self.motorEncoderCntR = 0
+        self.motorEncoderCntL = 0
         self.motorEncoderCntTotalR = 0
         self.motorEncoderCntTotalL = 0
         self.motorMode = "L"
