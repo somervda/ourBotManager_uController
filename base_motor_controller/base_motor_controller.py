@@ -51,25 +51,27 @@ class Base_Motor_Controller():
 
     def run(self, speed):
         self._setSpeed(speed)
-        # self.motorEncoderCntR = 0
-        # self.motorEncoderCntL = 0
-        self.motorEncoderR.irq(trigger=Pin.IRQ_FALLING,
-                               handler=self._motorEncoderCallbackR)
-        self.motorEncoderL.irq(trigger=Pin.IRQ_FALLING,
-                               handler=self._motorEncoderCallbackL)
+        if self.motorMode != "R":
+            #  Only restart encoders and update motors after change in mode
+            self.motorEncoderCntR = 0
+            self.motorEncoderCntL = 0
+            self.motorEncoderR.irq(trigger=Pin.IRQ_FALLING,
+                                   handler=self._motorEncoderCallbackR)
+            self.motorEncoderL.irq(trigger=Pin.IRQ_FALLING,
+                                   handler=self._motorEncoderCallbackL)
 
-        self.statusTimer = Timer()
-        self.motorMode = "R"
-        self.statusTimer.init(freq=10, mode=Timer.PERIODIC,
-                              callback=self._monitorStatus)
-        if (self.speed > 0):
-            self.motorLeft.forward(abs(self.speed))
-            self.motorRight.forward(abs(self.speed))
-        if (self.speed < 0):
-            self.motorLeft.reverse(abs(self.speed))
-            self.motorRight.reverse(abs(self.speed))
-        if (self.speed == 0):
-            self.stop()
+            self.statusTimer = Timer()
+            self.motorMode = "R"
+            self.statusTimer.init(freq=10, mode=Timer.PERIODIC,
+                                  callback=self._monitorStatus)
+            if (self.speed > 0):
+                self.motorLeft.forward(abs(self.speed))
+                self.motorRight.forward(abs(self.speed))
+            if (self.speed < 0):
+                self.motorLeft.reverse(abs(self.speed))
+                self.motorRight.reverse(abs(self.speed))
+            if (self.speed == 0):
+                self.stop()
 
     def runDistance(self, speed, distance):
         self.baseTargetDistance = distance
@@ -78,25 +80,27 @@ class Base_Motor_Controller():
     def turn(self, speed):
         # rotate the body at the velocity defined by speed
         self._setSpeed(speed)
-        # self.motorEncoderCntR = 0
-        # self.motorEncoderCntL = 0
-        self.motorEncoderR.irq(trigger=Pin.IRQ_FALLING,
-                               handler=self._motorEncoderCallbackR)
-        self.motorEncoderL.irq(trigger=Pin.IRQ_FALLING,
-                               handler=self._motorEncoderCallbackL)
+        if self.motorMode != "T":
+            #  Only restart encoders and update motors after change in mode
+            self.motorEncoderCntR = 0
+            self.motorEncoderCntL = 0
+            self.motorEncoderR.irq(trigger=Pin.IRQ_FALLING,
+                                   handler=self._motorEncoderCallbackR)
+            self.motorEncoderL.irq(trigger=Pin.IRQ_FALLING,
+                                   handler=self._motorEncoderCallbackL)
 
-        self.statusTimer = Timer()
-        self.motorMode = "T"
-        self.statusTimer.init(freq=10, mode=Timer.PERIODIC,
-                              callback=self._monitorStatus)
-        if (self.speed > 0):
-            self.motorLeft.reverse(abs(self.speed))
-            self.motorRight.forward(abs(self.speed))
-        if (self.speed < 0):
-            self.motorLeft.forward(abs(self.speed))
-            self.motorRight.reverse(abs(self.speed))
-        if (self.speed == 0):
-            self.stop()
+            self.statusTimer = Timer()
+            self.motorMode = "T"
+            self.statusTimer.init(freq=10, mode=Timer.PERIODIC,
+                                  callback=self._monitorStatus)
+            if (self.speed > 0):
+                self.motorLeft.reverse(abs(self.speed))
+                self.motorRight.forward(abs(self.speed))
+            if (self.speed < 0):
+                self.motorLeft.forward(abs(self.speed))
+                self.motorRight.reverse(abs(self.speed))
+            if (self.speed == 0):
+                self.stop()
 
     def turnDistance(self, speed, distance):
         self.baseTargetDistance = distance
