@@ -12,7 +12,7 @@ class Base_Motor_Controller():
     uartData = ""
 
     # Set up motor encoder interface
-    motorMode = "L"  # R=Run T=Turn L=Listen
+    motorMode = "S"  # R=Run T=Turn S=Stopped
     baseTargetDistance = 0  # In average encoder ticks
     motorEncoderCntR = 0
     motorEncoderCntTotalR = 0
@@ -52,18 +52,10 @@ class Base_Motor_Controller():
     def run(self, speed):
         self._setSpeed(speed)
         if self.motorMode != "R":
+            self.motorMode = "R"
             #  Only restart encoders and update motors after change in mode
             self.motorEncoderCntR = 0
             self.motorEncoderCntL = 0
-            self.motorEncoderR.irq(trigger=Pin.IRQ_FALLING,
-                                   handler=self._motorEncoderCallbackR)
-            self.motorEncoderL.irq(trigger=Pin.IRQ_FALLING,
-                                   handler=self._motorEncoderCallbackL)
-
-            self.statusTimer = Timer()
-            self.motorMode = "R"
-            self.statusTimer.init(freq=10, mode=Timer.PERIODIC,
-                                  callback=self._monitorStatus)
             if (self.speed > 0):
                 self.motorLeft.forward(abs(self.speed))
                 self.motorRight.forward(abs(self.speed))
@@ -81,18 +73,10 @@ class Base_Motor_Controller():
         # rotate the body at the velocity defined by speed
         self._setSpeed(speed)
         if self.motorMode != "T":
+            self.motorMode = "T"
             #  Only restart encoders and update motors after change in mode
             self.motorEncoderCntR = 0
             self.motorEncoderCntL = 0
-            self.motorEncoderR.irq(trigger=Pin.IRQ_FALLING,
-                                   handler=self._motorEncoderCallbackR)
-            self.motorEncoderL.irq(trigger=Pin.IRQ_FALLING,
-                                   handler=self._motorEncoderCallbackL)
-
-            self.statusTimer = Timer()
-            self.motorMode = "T"
-            self.statusTimer.init(freq=10, mode=Timer.PERIODIC,
-                                  callback=self._monitorStatus)
             if (self.speed > 0):
                 self.motorLeft.reverse(abs(self.speed))
                 self.motorRight.forward(abs(self.speed))
@@ -113,8 +97,6 @@ class Base_Motor_Controller():
         self.motorLeft.stop()
         self.motorRight.stop()
         self.baseTargetDistance = 0
-        self.motorEncoderR.irq(handler=None)
-        self.motorEncoderL.irq(handler=None)
         #  Report back if a movement happened
         if self.motorMode in ["R", "T"]:
             # Send back info about average base movement in the form
@@ -131,15 +113,27 @@ class Base_Motor_Controller():
         self.motorEncoderCntL = 0
         self.motorEncoderCntTotalR = 0
         self.motorEncoderCntTotalL = 0
-        self.motorMode = "L"
+        self.motorMode = "S"
         gc.collect()
 
     def start(self, debug=False):
-        self.motorMode = "L"
+        self.motorMode = "S"
         self.debug = debug
         self.statusTimer = Timer()
         self.statusTimer.init(freq=10, mode=Timer.PERIODIC,
                               callback=self._monitorStatus)
+        self.motorEncoderR.irq(trigger=Pin.IRQ_FALLING,
+                               handler=self._motorEncoderCallbackR)
+        self.motorEncoderL.irq(trigger=Pin.IRQ_FALLING,
+                               handler=self._motorEncoderCallbackL)
+
+    def _monitorStatus(self, timer):
+        if self.motorMode != "S":
+            self._adjustLRSpeed()
+            self.motorEncoderCntR = 0
+            self.motorEncoderCntL = 0
+        self._uartListen()
+        gc.collect()
 
     def quit(self):
         try:
@@ -147,6 +141,11 @@ class Base_Motor_Controller():
             print("Quit OK")
         except:
             print("Could not deinit status timer!")
+        try:
+            self.motorEncoderR.irq(handler=None)
+            self.motorEncoderL.irq(handler=None)
+        except:
+            print("Could not release encoder interupts!")
 
     def reboot(self):
         # Hardware reboot to get everything restarted
@@ -161,15 +160,7 @@ class Base_Motor_Controller():
         if abs(self.speed) < self.motorSpeedMin:
             self.speed = self.motorSpeedMin * self.speedDirection
 
-    def _monitorStatus(self, timer):
-        if self.motorMode != "L":
-            self._adjustLRSpeed(self.motorMode == "R")
-            self.motorEncoderCntR = 0
-            self.motorEncoderCntL = 0
-        self._uartListen()
-        gc.collect()
-
-    def _adjustLRSpeed(self, isRun):
+    def _adjustLRSpeed(self):
         # Checks the the distance moved on each Tick and
         # reduce the faster motor speed if needed
 
@@ -228,8 +219,8 @@ class Base_Motor_Controller():
                     print("Distance exceeded, stopped  baseDist:" + str(baseDistance) + " distL:" +
                           str(self.motorEncoderCntTotalL) + " distR:" + str(self.motorEncoderCntTotalR))
                 self.stop()
-        if self.speed != 0:
-            # Set motor directions depending on if it is a RUN or Turn action
+        if self.motorMode in ["R", "T"]:
+            # Set motor directions depending on if it is a Run or Turn action
             # and if direction is positive or negative
             if abs(speedL) < self.motorSpeedMin:
                 speedL = self.motorSpeedMin
@@ -239,7 +230,8 @@ class Base_Motor_Controller():
                 print("speedL:" + str(speedL) + " speedR:" + str(speedR) + " distL:" +
                       str(self.motorEncoderCntTotalL) + " distR:" + str(self.motorEncoderCntTotalR))
                 print("")
-            if (isRun):
+            if (self.motorMode == "R"):
+                #  Is motorMode=R and going forward or back in straight line
                 if (self.speedDirection == 1):
                     self.motorLeft.forward(abs(speedL))
                     self.motorRight.forward(abs(speedR))
@@ -247,6 +239,7 @@ class Base_Motor_Controller():
                     self.motorLeft.reverse(abs(speedL))
                     self.motorRight.reverse(abs(speedR))
             else:
+                # otherwise is a turn - motorMode = T
                 if (self.speedDirection == -1):
                     self.motorLeft.reverse(abs(speedL))
                     self.motorRight.forward(abs(speedR))
