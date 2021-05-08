@@ -4,8 +4,8 @@ import util
 from machine import Pin
 
 led = Pin(25, Pin.OUT)
-bmc = Base_Motor_Controller(20, 19, 18, 10, 11, 12,
-                            13,  16, motorCruisingSpeed=35)
+bmc = Base_Motor_Controller(20, 19, 18, 16, 11, 12,
+                            13,  10, motorCruisingSpeed=35)
 
 # Start the motor controller processing - once started it will
 #  respond to serial commands

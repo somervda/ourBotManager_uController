@@ -53,7 +53,8 @@ class Base_Motor_Controller():
         self._setSpeed(speed)
         if self.motorMode != "R":
             self.motorMode = "R"
-            #  Only restart encoders and update motors after change in mode
+            #  Only restart encoders and update motors
+            #  after change in mode
             self.motorEncoderCntR = 0
             self.motorEncoderCntL = 0
             if (self.speed > 0):
@@ -175,6 +176,7 @@ class Base_Motor_Controller():
 
         speedL = self.speed
         speedR = self.speed
+        # Start adjusting speeds after first encoder feedback has occurred
         if (self.motorEncoderCntR > 0 and self.motorEncoderCntL > 0 and self.motorEncoderCntTotalL > 0 and self.motorEncoderCntTotalR > 0):
             speedDiff = abs((self.motorEncoderCntL -
                              self.motorEncoderCntR) / ((self.motorEncoderCntR + self.motorEncoderCntL)/2))
