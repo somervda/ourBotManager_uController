@@ -174,8 +174,8 @@ class Base_Motor_Controller():
                 if self.debug:
                     print("Crusing!")
 
-        speedL = self.speed
-        speedR = self.speed
+        speedL = abs(self.speed)
+        speedR = abs(self.speed)
         # Start adjusting speeds after first encoder feedback has occurred
         if (self.motorEncoderCntR > 0 and self.motorEncoderCntL > 0 and self.motorEncoderCntTotalL > 0 and self.motorEncoderCntTotalR > 0):
             speedDiff = abs((self.motorEncoderCntL -
