@@ -15,12 +15,12 @@ class HBridge():
 
     #  functions to set motor controller signals
     def setForward(self):
-        self._pin_in1.on()
-        self._pin_in2.off()
-
-    def setReverse(self):
         self._pin_in1.off()
         self._pin_in2.on()
+
+    def setReverse(self):
+        self._pin_in1.on()
+        self._pin_in2.off()
 
     def setBrake(self):
         self._pin_in1.off()

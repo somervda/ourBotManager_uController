@@ -23,16 +23,22 @@ class Base_Motor_Controller():
     # Current speed setting
     speed = 0
     # motorSpeedMin is the minimum a speed can be set to or adjusted
-    motorSpeedMin = 10
+    motorSpeedMin = 50
+
     motorCruisingSpeed = 30
     motorCruisingDistance = 120
-    speedDirection = 1
 
     # dFactor represents the coefficient for the amount that overall distance
     # corrections should be applied on one monitoring cycle. Values less than 1
     # will insure distance corrections are done slowly over multiple monitoring
     # cycles
     dFactor = 0.2
+
+    # srFactor and stFactor is how much speed adjustment is applied
+    # normally 1 to get speeds adjusted on next cycle but I found turning speed
+    # adjustments is a bit picky
+    srFactor = 1.0
+    stFactor = 0.5
 
     def __init__(self, pin_pwm_l, pin_in1_l, pin_in2_l, pin_encoder_l, pin_pwm_r, pin_in1_r, pin_in2_r, pin_encoder_r,
                  freq=1000, uart_id=0, motorCruisingSpeed=30, motorCruisingDistance=120):
@@ -154,13 +160,13 @@ class Base_Motor_Controller():
         machine.reset()
 
     def _setSpeed(self, speed):
+        # Set the initial speed after a run or turn request
         self.speed = speed
-        if speed < 0:
-            self.speedDirection = 1
-        else:
-            self.speedDirection = -1
         if abs(self.speed) < self.motorSpeedMin:
-            self.speed = self.motorSpeedMin * self.speedDirection
+            if speed >= 0:
+                self.speed = self.motorSpeedMin
+            else:
+                self.speed = self.motorSpeedMin * -1
 
     def _adjustLRSpeed(self):
         # Checks the the distance moved on each Tick and
@@ -186,10 +192,17 @@ class Base_Motor_Controller():
                             self.motorEncoderCntTotalR) / ((self.motorEncoderCntR + self.motorEncoderCntL)/2))
 
             #  Set the difference to reduce faster motor speed based on if positive or negative speed
-            if (self.motorEncoderCntL < self.motorEncoderCntR):
-                speedR -= round(speedR * speedDiff)
+            # Apply the srFactor or stFactor depending on the movement type.
+            sFactor = 1.0
+            if self.motorMode == "R":
+                sFactor = self.srFactor
             else:
-                speedL -= round(speedL * speedDiff)
+                sFactor = self.stFactor
+
+            if (self.motorEncoderCntL < self.motorEncoderCntR):
+                speedR -= round(speedR * speedDiff * sFactor)
+            else:
+                speedL -= round(speedL * speedDiff * sFactor)
 
             # If speeds must be adjusted to compensate for over all distance
             # then do it gradually based on dFactor
@@ -198,8 +211,8 @@ class Base_Motor_Controller():
             else:
                 speedL -= round(speedL * distDiff * self.dFactor)
             if self.debug:
-                print("speedDiff:" + str(speedDiff) + " distDiff:" + str(distDiff) + " deltaL:" +
-                      str(self.motorEncoderCntL) + " deltaR:" + str(self.motorEncoderCntR))
+                print("speedDiff:" + str(speedDiff) + " distDiff:" + str(distDiff) + " encoderL:" +
+                      str(self.motorEncoderCntL) + " encoderR:" + str(self.motorEncoderCntR))
 
         # If we are moving a certain distance then check the distance the base has moved (average of the two motor encoders)
         # vs the  baseTargetDistance
@@ -225,9 +238,9 @@ class Base_Motor_Controller():
         if self.motorMode in ["R", "T"]:
             # Set motor directions depending on if it is a Run or Turn action
             # and if direction is positive or negative
-            if abs(speedL) < self.motorSpeedMin:
+            if speedL < self.motorSpeedMin:
                 speedL = self.motorSpeedMin
-            if abs(speedR) < self.motorSpeedMin:
+            if speedR < self.motorSpeedMin:
                 speedR = self.motorSpeedMin
             if self.debug:
                 print("speedL:" + str(speedL) + " speedR:" + str(speedR) + " distL:" +
@@ -235,20 +248,20 @@ class Base_Motor_Controller():
                 print("")
             if (self.motorMode == "R"):
                 #  Is motorMode=R and going forward or back in straight line
-                if (self.speedDirection == 1):
-                    self.motorLeft.forward(abs(speedL))
-                    self.motorRight.forward(abs(speedR))
+                if self.speed > 0:
+                    self.motorLeft.forward(speedL)
+                    self.motorRight.forward(speedR)
                 else:
-                    self.motorLeft.reverse(abs(speedL))
-                    self.motorRight.reverse(abs(speedR))
+                    self.motorLeft.reverse(speedL)
+                    self.motorRight.reverse(speedR)
             else:
                 # otherwise is a turn - motorMode = T
-                if (self.speedDirection == -1):
-                    self.motorLeft.reverse(abs(speedL))
-                    self.motorRight.forward(abs(speedR))
+                if self.speed > 0:
+                    self.motorLeft.reverse(speedL)
+                    self.motorRight.forward(speedR)
                 else:
-                    self.motorLeft.forward(abs(speedL))
-                    self.motorRight.reverse(abs(speedR))
+                    self.motorLeft.forward(speedL)
+                    self.motorRight.reverse(speedR)
 
     def _motorEncoderCallbackR(self, pin):
         self.motorEncoderCntR += 1

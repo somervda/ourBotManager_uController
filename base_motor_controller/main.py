@@ -9,7 +9,7 @@ bmc = Base_Motor_Controller(20, 19, 18, 16, 11, 12,
 
 # Start the motor controller processing - once started it will
 #  respond to serial commands
-bmc.start(False)
+bmc.start(True)
 print("UART serial started")
 # Flash led 5 times to indicate things are running
 for blink_loop in range(5):
