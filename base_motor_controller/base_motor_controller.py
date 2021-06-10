@@ -25,8 +25,8 @@ class Base_Motor_Controller():
     # motorSpeedMin is the minimum a speed can be set to or adjusted
     motorSpeedMin = 50
 
-    motorCruisingSpeed = 30
-    motorCruisingDistance = 120
+    motorCruisingSpeed = 50
+    motorCruisingDistance = 700
 
     # dFactor represents the coefficient for the amount that overall distance
     # corrections should be applied on one monitoring cycle. Values less than 1
@@ -39,6 +39,12 @@ class Base_Motor_Controller():
     # adjustments is a bit picky
     srFactor = 1.0
     stFactor = 0.5
+
+    # Adjustment to convert millimeters to encoder ticks
+    distanceRunTickRatio = 1.71393
+
+    # Adjustment to convert degrees to encoder ticks
+    distanceTurnTickRatio = 3.6111
 
     def __init__(self, pin_pwm_l, pin_in1_l, pin_in2_l, pin_encoder_l, pin_pwm_r, pin_in1_r, pin_in2_r, pin_encoder_r,
                  freq=1000, uart_id=0, motorCruisingSpeed=30, motorCruisingDistance=120):
@@ -74,7 +80,8 @@ class Base_Motor_Controller():
                 self.stop()
 
     def runDistance(self, speed, distance):
-        self.baseTargetDistance = distance
+        # convert distance to move into target number of ticks
+        self.baseTargetDistance = int(distance * self.distanceRunTickRatio)
         self.run(speed)
 
     def turn(self, speed):
@@ -95,7 +102,7 @@ class Base_Motor_Controller():
                 self.stop()
 
     def turnDistance(self, speed, distance):
-        self.baseTargetDistance = distance
+        self.baseTargetDistance = int(distance * self.distanceTurnTickRatio)
         self.turn(speed)
 
     def stop(self):
@@ -176,7 +183,7 @@ class Base_Motor_Controller():
         if self.baseTargetDistance > 0:
             baseDistance = ((self.motorEncoderCntTotalR +
                              self.motorEncoderCntTotalL)/2)
-            if self.speed != 0 and (self.baseTargetDistance - baseDistance < self.motorCruisingDistance) and self.motorCruisingSpeed < self.speed:
+            if (self.speed != 0 and (self.baseTargetDistance - baseDistance < self.motorCruisingDistance) and self.motorCruisingSpeed < self.speed) and self.motorMode == "R":
                 self.speed = self.motorCruisingSpeed
                 if self.debug:
                     print("Crusing!")
